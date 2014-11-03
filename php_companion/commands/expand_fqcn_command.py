@@ -3,7 +3,7 @@ import sublime_plugin
 
 import re
 
-from ..utils import find_symbol
+from ..utils import find_symbol, increment_namespace_use
 
 class ExpandFqcnCommand(sublime_plugin.TextCommand):
     def run(self, edit, leading_separator=False):
@@ -26,5 +26,7 @@ class ExpandFqcnCommand(sublime_plugin.TextCommand):
     def on_done(self, index):
         if index == -1:
             return
+
+        increment_namespace_use(self.view.window(), self.namespaces[index][0])
 
         self.view.run_command("replace_fqcn", {"region_start": self.region.begin(), "region_end": self.region.end(), "namespace": self.namespaces[index][0], "leading_separator": self.leading_separator})

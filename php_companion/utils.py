@@ -33,11 +33,16 @@ def find_symbol(symbol, window):
             with open(normalize_to_system_style_path(file[0]), "rb") as f:
                 with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as m:
                     for match in re.findall(pattern, m):
-                        namespaces.append([match.decode('utf-8') + "\\" + symbol, file[1]])
+                        namespace = match.decode('utf-8') + "\\" + symbol
+                        namespaces.append([namespace, file[1]])
                         break
 
     if get_setting('allow_use_from_global_namespace', False):
         namespaces += find_in_global_namespace(symbol)
+
+    data = get_priorities(window)
+
+    namespaces = sorted(namespaces, key=lambda namespace: str(data.get(namespace[0], 0)), reverse=True)
 
     return namespaces
 
@@ -50,6 +55,17 @@ def find_in_global_namespace(symbol):
     matches = []
     for phpClass in definedClasses:
         if symbol == phpClass:
-            matches.append([phpClass, phpClass])
+            matches.append([phpClass, phpClass, 0])
 
     return matches
+
+def increment_namespace_use(window, namespace):
+    priorities = get_priorities(window)
+    priorities[namespace] = priorities.get(namespace, 0) + 1
+    data = window.project_data()
+    data['priorities'] = priorities
+    window.set_project_data(data)
+
+def get_priorities(window):
+    projectData = window.project_data()
+    return projectData.get('priorities', {})

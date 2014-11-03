@@ -3,7 +3,7 @@ import sublime_plugin
 
 import re
 
-from ..utils import find_symbol
+from ..utils import find_symbol, increment_namespace_use
 
 class FindUseCommand(sublime_plugin.TextCommand):
 
@@ -25,5 +25,7 @@ class FindUseCommand(sublime_plugin.TextCommand):
     def on_done(self, index):
         if index == -1:
             return
+
+        increment_namespace_use(self.view.window(), self.namespaces[index][0])
 
         self.view.run_command("import_use", {"namespace": self.namespaces[index][0]})
