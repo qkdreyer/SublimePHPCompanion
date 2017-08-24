@@ -1,4 +1,6 @@
-import sublime, sublime_plugin
+import sublime
+import sublime_plugin
+import re
 
 class ImplementCommand(sublime_plugin.TextCommand):
 
@@ -9,17 +11,35 @@ class ImplementCommand(sublime_plugin.TextCommand):
         region = self.view.word(point)
         return self.view.substr(region)
 
+    # Gets the current view content
+    #
+    def get_view_content(self):
+        size = self.view.size()
+        region = sublime.Region(0, size)
+        return self.view.substr(region)
+
+    # Gets the extended symbol
+    #
+    def get_extended_symbol(self):
+        view_content = self.get_view_content()
+        search = re.search(r"extends\s+(\w+)", view_content)
+        return search.group(1) if search else ''
+
     # Gets files with names that match the currently selected symbol
     #
     def get_matching_files(self):
         window = self.view.window()
-        selected_symbol = self.get_selected_symbol()
-        locations = window.lookup_symbol_in_index(selected_symbol)
+        symbols = [self.get_selected_symbol, self.get_extended_symbol]
+        locations = None
 
-        files = []
-        for location in locations:
-            files.append(location[0])
-        return files
+        for symbol in symbols:
+            symbol = symbol()
+            if symbol:
+                locations = self.view.window().lookup_symbol_in_index(symbol)
+                if locations:
+                    break
+
+        return list(map(lambda x: x[0], locations)) if locations else []
 
     # Handles the selection of a quick panel item
     #
