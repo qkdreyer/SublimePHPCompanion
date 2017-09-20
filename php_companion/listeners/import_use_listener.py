@@ -1,24 +1,33 @@
 import sublime
 import sublime_plugin
+import re
 from functools import reduce
 
 from ..settings import get_setting
 from ..utils import find_symbol
 
 class ImportUseListener(sublime_plugin.EventListener):
-    def reduce_support(self, carry, item, tag):
+    def reduce_support(self, carry, item, tags):
+        pos = item[0].begin()
         symbol = item[1]
-        offset = len(tag)
-        if symbol[:offset] == tag and not carry.get(symbol[offset:]):
-            key = symbol[offset:].rsplit('\\', 1)[-1]
-            carry[key] = item
+
+        if type(tags) is not list:
+            tags = [tags]
+
+        for tag in tags:
+            offset = len(tag)
+            # print('symb:' + symbol[:offset], 'tag:' + tag)
+            if symbol[:offset] == tag and not carry.get(symbol[offset:]) and self.view.substr(sublime.Region(pos - 1, pos)) != '\\':
+                key = symbol[offset:].rsplit('\\', 1)[-1]
+                carry[key] = item
+
         return carry
 
     def reduce_support_use(self, carry, item):
         return self.reduce_support(carry, item, '    SU: ')
 
     def reduce_support_class(self, carry, item):
-        return self.reduce_support(carry, item, '    SC: ')
+        return self.reduce_support(carry, item, ['    SC: ', '    SCA: ', '    SE: '])
 
     def on_pre_save(self, view):
         self.view = view
@@ -33,9 +42,11 @@ class ImportUseListener(sublime_plugin.EventListener):
         if enable_import_use_on_save and file_name.endswith('.php'):
             symbols = view.symbols()
             uses = reduce(self.reduce_support_use, symbols, {})
-            for klass in reduce(self.reduce_support_class, symbols, {}):
+            klasses = reduce(self.reduce_support_class, symbols, {})
+            for klass in klasses:
                 if not uses.get(klass):
                     self.namespaces = find_symbol(klass, view.window())
+                    print('klass', klass, self.namespaces)
 
                     if len(self.namespaces) == 1:
                         self.on_done(0)
