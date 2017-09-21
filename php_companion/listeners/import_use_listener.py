@@ -7,27 +7,28 @@ from ..settings import get_setting
 from ..utils import find_symbol
 
 class ImportUseListener(sublime_plugin.EventListener):
-    def reduce_support(self, carry, item, tags):
+    def index_symbols_by_category(self, carry, item):
         pos = item[0].begin()
         symbol = item[1]
+        chunks = symbol.split(':')
+        category = chunks[0].lstrip()
+        klass = chunks[1].lstrip()
 
-        if type(tags) is not list:
-            tags = [tags]
+        if not carry.get(category):
+            carry[category] = {}
 
-        for tag in tags:
-            offset = len(tag)
-            # print('symb:' + symbol[:offset], 'tag:' + tag)
-            if symbol[:offset] == tag and not carry.get(symbol[offset:]) and self.view.substr(sublime.Region(pos - 1, pos)) != '\\':
-                key = symbol[offset:].rsplit('\\', 1)[-1]
-                carry[key] = item
+        if not carry[category].get(klass) and self.view.substr(sublime.Region(pos - 1, pos)) != '\\':
+            key = klass.rsplit('\\', 1)[-1]
+            carry[category][key] = klass
 
         return carry
 
-    def reduce_support_use(self, carry, item):
-        return self.reduce_support(carry, item, '    SU: ')
-
-    def reduce_support_class(self, carry, item):
-        return self.reduce_support(carry, item, ['    SC: ', '    SCA: ', '    SE: '])
+    def merge_symbols_for_categories(self, symbols, categories):
+        merged = {}
+        for category in categories:
+            if symbols.get(category):
+                merged.update(symbols.get(category))
+        return merged
 
     def on_pre_save(self, view):
         self.view = view
@@ -40,13 +41,14 @@ class ImportUseListener(sublime_plugin.EventListener):
             enable_import_use_on_save = search != None
 
         if enable_import_use_on_save and file_name.endswith('.php'):
-            symbols = view.symbols()
-            uses = reduce(self.reduce_support_use, symbols, {})
-            klasses = reduce(self.reduce_support_class, symbols, {})
+            symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
+            self.namespace = list(symbols.get('N').items())[0][1]
+            uses = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
+            klasses = self.merge_symbols_for_categories(symbols, ['SC', 'SCA', 'SE'])
+
             for klass in klasses:
                 if not uses.get(klass):
                     self.namespaces = find_symbol(klass, view.window())
-                    print('klass', klass, self.namespaces)
 
                     if len(self.namespaces) == 1:
                         self.on_done(0)
@@ -57,4 +59,6 @@ class ImportUseListener(sublime_plugin.EventListener):
         if index == -1:
             return
 
-        self.view.run_command("import_use", {"namespace": self.namespaces[index][0]})
+        namespace = self.namespaces[index][0]
+        if not self.namespace in namespace:
+            self.view.run_command("import_use", {"namespace": namespace})
