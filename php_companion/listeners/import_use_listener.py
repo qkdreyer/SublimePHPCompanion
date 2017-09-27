@@ -47,11 +47,11 @@ class ImportUseListener(sublime_plugin.EventListener):
             self.namespace = list(symbols.get('N').items())[0][1][0]
             uses = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
             klasses = self.merge_symbols_for_categories(symbols, ['SC', 'SCA', 'SE'])
-            print('symbols', symbols)
+            #print('symbols', symbols)
 
             for klass in klasses:
                 if not uses.get(klass):
-                    print('adding klass', klass, klasses[klass])
+                    #print('adding klass', klass, klasses[klass])
                     self.namespaces = find_symbol(klass, view.window())
 
                     if len(self.namespaces) == 1:
@@ -59,11 +59,15 @@ class ImportUseListener(sublime_plugin.EventListener):
                     elif len(self.namespaces) > 1:
                         view.window().show_quick_panel(self.namespaces, self.on_done)
 
+            symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
+            uses = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
+            klasses = self.merge_symbols_for_categories(symbols, ['SC', 'SCA', 'SE'])
+
             for use in uses:
                 if not klasses.get(use):
-                    print('removing use', use, uses[use])
+                    #print('removing use', use, uses[use])
                     region = uses[use][1]
-                    self.view.run_command("replace_fqcn", {"region_start": region.begin() - 5, "region_end": region.end() + 1, "namespace": ''})
+                    self.view.run_command("replace_fqcn", {"region_start": region.begin() - 5, "region_end": region.end() + 1, "namespace": '', "leading_separator": False})
 
     def on_done(self, index):
         if index == -1:
