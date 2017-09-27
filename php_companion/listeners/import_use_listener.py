@@ -19,9 +19,9 @@ class ImportUseListener(sublime_plugin.EventListener):
         if not carry.get(category):
             carry[category] = {}
 
-        if not carry[category].get(klass) and self.view.substr(sublime.Region(begin - 1, begin)) != '\\':
+        if self.view.substr(sublime.Region(begin - 1, begin)) != '\\':
             key = klass.rsplit('\\', 1)[-1]
-            carry[category][key] = [klass, pos]
+            carry[category][key] = [klass, pos, category]
 
         return carry
 
@@ -31,6 +31,9 @@ class ImportUseListener(sublime_plugin.EventListener):
             if symbols.get(category):
                 merged.update(symbols.get(category))
         return merged
+
+    def first(self, dict):
+        return next(iter(dict.values()))
 
     def on_pre_save(self, view):
         self.view = view
@@ -44,14 +47,15 @@ class ImportUseListener(sublime_plugin.EventListener):
 
         if enable_import_use_on_save and file_name.endswith('.php'):
             symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
-            self.namespace = list(symbols.get('N').items())[0][1][0]
             uses = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
             klasses = self.merge_symbols_for_categories(symbols, ['SC', 'SCA', 'SE'])
+
+            self.namespace = self.first(symbols.get('N'))
+            self.klass = self.first(symbols.get('C'))
             #print('symbols', symbols)
 
             for klass in klasses:
                 if not uses.get(klass):
-                    #print('adding klass', klass, klasses[klass])
                     self.namespaces = find_symbol(klass, view.window())
 
                     if len(self.namespaces) == 1:
@@ -59,20 +63,17 @@ class ImportUseListener(sublime_plugin.EventListener):
                     elif len(self.namespaces) > 1:
                         view.window().show_quick_panel(self.namespaces, self.on_done)
 
-            symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
-            uses = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
-            klasses = self.merge_symbols_for_categories(symbols, ['SC', 'SCA', 'SE'])
-
             for use in uses:
-                if not klasses.get(use):
+                if not klasses.get(use) and uses[use][1].begin() < self.klass[1].begin():
                     #print('removing use', use, uses[use])
-                    region = uses[use][1]
-                    self.view.run_command("replace_fqcn", {"region_start": region.begin() - 5, "region_end": region.end() + 1, "namespace": '', "leading_separator": False})
+                    region = self.view.find(("use " + uses[use][0] + ";").replace('\\', '\\\\'), 0)
+                    self.view.run_command("replace_fqcn", {"region_start": region.begin() -1, "region_end": region.end(), "namespace": '', "leading_separator": False})
 
     def on_done(self, index):
         if index == -1:
             return
 
         namespace = self.namespaces[index][0]
-        if not self.namespace in namespace:
+        if not self.namespace[0] in namespace:
+            #print('adding use', namespace)
             self.view.run_command("import_use", {"namespace": namespace})
