@@ -14,14 +14,18 @@ class ImportUseListener(sublime_plugin.EventListener):
         symbol = item[1]
         chunks = symbol.split(':')
         category = chunks[0].lstrip()
-        klass = chunks[1].lstrip()
+        fqcn = chunks[1].lstrip()
+        klass = fqcn.rsplit('\\', 1)[-1]
+
+        # Handling traits usage
+        if carry.get('C') and category == 'SU':
+            category = 'SC'
 
         if not carry.get(category):
             carry[category] = {}
 
         if self.view.substr(sublime.Region(begin - 1, begin)) != '\\':
-            key = klass.rsplit('\\', 1)[-1]
-            carry[category][key] = [klass, pos, category]
+            carry[category][klass] = {'fqcn': fqcn, 'klass': klass, 'pos': pos}
 
         return carry
 
@@ -32,7 +36,7 @@ class ImportUseListener(sublime_plugin.EventListener):
                 merged.update(symbols.get(category))
         return merged
 
-    def first(self, dict):
+    def nextval(self, dict):
         return next(iter(dict.values()))
 
     def on_pre_save(self, view):
@@ -47,33 +51,48 @@ class ImportUseListener(sublime_plugin.EventListener):
 
         if enable_import_use_on_save and file_name.endswith('.php'):
             symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
-            uses = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
-            klasses = self.merge_symbols_for_categories(symbols, ['SC', 'SCA', 'SE'])
-
-            self.namespace = self.first(symbols.get('N'))
-            self.klass = self.first(symbols.get('C'))
+            self.imports = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
+            self.references = self.merge_symbols_for_categories(symbols, ['SP', 'SC', 'SCA'])
             #print('symbols', symbols)
 
-            for klass in klasses:
-                if not uses.get(klass):
-                    self.namespaces = find_symbol(klass, view.window())
+            self.namespace = self.nextval(symbols.get('N'))
+            self.klass = self.nextval(symbols.get('C'))
 
-                    if len(self.namespaces) == 1:
-                        self.on_done(0)
-                    elif len(self.namespaces) > 1:
-                        view.window().show_quick_panel(self.namespaces, self.on_done)
+            for klass, use in self.imports.items():
+                if not self.references.get(klass): #and use.get('pos').begin() < self.klass.get('pos').begin():
+                    #print('removing use', klass, use)
+                    region = self.view.find(('use ' + use.get('fqcn') + ';').replace('\\', '\\\\'), 0)
+                    self.view.run_command('replace_fqcn', {'region_start': region.begin() -1, 'region_end': region.end(), 'namespace': '', 'leading_separator': False})
 
-            for use in uses:
-                if not klasses.get(use) and uses[use][1].begin() < self.klass[1].begin():
-                    #print('removing use', use, uses[use])
-                    region = self.view.find(("use " + uses[use][0] + ";").replace('\\', '\\\\'), 0)
-                    self.view.run_command("replace_fqcn", {"region_start": region.begin() -1, "region_end": region.end(), "namespace": '', "leading_separator": False})
+            self.references_iterator = iter(self.references.values())
+            self.on_select()
 
-    def on_done(self, index):
+    def on_select(self):
+        try:
+            reference = next(self.references_iterator)
+            klass = reference.get('klass')
+            if not self.imports.get(klass):
+                self.namespaces = find_symbol(klass, self.view.window())
+                #print('adding?', self.namespaces)
+
+                if len(self.namespaces) == 1:
+                    self.on_import(0)
+                elif len(self.namespaces) > 1:
+                    self.view.window().show_quick_panel(self.namespaces, self.on_import)
+            else:
+                self.on_select()
+        except StopIteration:
+            self.view.run_command('save')
+
+    def on_import(self, index):
         if index == -1:
             return
 
         namespace = self.namespaces[index][0]
-        if not self.namespace[0] in namespace:
+        #print('namespaces', namespace, self.namespace.get('fqcn'), index)
+        if not self.namespace.get('fqcn') in namespace:
             #print('adding use', namespace)
-            self.view.run_command("import_use", {"namespace": namespace})
+            self.view.run_command('import_use', {'namespace': namespace})
+
+        self.on_select()
+
