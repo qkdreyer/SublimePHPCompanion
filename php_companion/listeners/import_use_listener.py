@@ -43,12 +43,16 @@ class ImportUseListener(sublime_plugin.EventListener):
             if not self.imports.get(klass):
                 self.namespaces = find_symbol(klass, self.view.window())
 
+                for namespace in self.namespaces:
+                    if self.namespace.get('fqcn') in namespace[0]:
+                        return self.on_select()
+
                 if len(self.namespaces) == 1:
                     self.on_import(0)
                 elif len(self.namespaces) > 1:
                     self.view.window().show_quick_panel(self.namespaces, self.on_import)
             else:
-                self.on_select()
+                return self.on_select()
         except StopIteration:
             if self.view.is_dirty():
                 self.view.run_command('save')
@@ -57,11 +61,7 @@ class ImportUseListener(sublime_plugin.EventListener):
         if index == -1:
             return
 
-        namespace = self.namespaces[index][0]
-        if not self.namespace.get('fqcn') in namespace:
-            #print('adding use', namespace)
-            self.view.run_command('import_use', {'namespace': namespace})
-
+        self.view.run_command('import_use', {'namespace': self.namespaces[index][0]})
         self.on_select()
 
     def index_symbols_by_category(self, carry, item):
