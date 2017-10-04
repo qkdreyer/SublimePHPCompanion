@@ -21,7 +21,7 @@ class ImportUseListener(sublime_plugin.EventListener):
         if enable_import_use_on_save and file_name.endswith('.php'):
             symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
             self.imports = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
-            self.references = self.merge_symbols_for_categories(symbols, ['SP', 'SC', 'SCA'])
+            self.references = self.merge_symbols_for_categories(symbols, ['SP', 'SC', 'SCA', 'KA'])
             #print('symbols', symbols)
 
             self.namespace = self.nextval(symbols.get('N'))
@@ -61,6 +61,7 @@ class ImportUseListener(sublime_plugin.EventListener):
         if index == -1:
             return
 
+        #print('adding use', self.namespaces[index][0])
         self.view.run_command('import_use', {'namespace': self.namespaces[index][0]})
         self.on_select()
 
