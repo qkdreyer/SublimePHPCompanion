@@ -22,7 +22,7 @@ class ImportUseListener(sublime_plugin.EventListener):
             symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
             self.imports = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
             self.references = self.merge_symbols_for_categories(symbols, ['SP', 'SC', 'SCA', 'KA'])
-            #print('symbols', symbols)
+            # print('symbols', symbols)
 
             self.namespace = self.nextval(symbols.get('N'))
             self.klass = self.nextval(symbols.get('C'))
@@ -44,13 +44,14 @@ class ImportUseListener(sublime_plugin.EventListener):
                 self.namespaces = find_symbol(klass, self.view.window())
 
                 for namespace in self.namespaces:
-                    if self.namespace.get('fqcn') in namespace[0]:
+                    if self.namespace and self.namespace.get('fqcn') in namespace[0]:
                         return self.on_select()
 
                 if len(self.namespaces) == 1:
                     self.on_import(0)
                 elif len(self.namespaces) > 1:
-                    self.view.window().show_quick_panel(self.namespaces, self.on_import)
+                    sublime.set_timeout(lambda: self.view.window().show_quick_panel(self.namespaces, self.on_import), 10)
+                    # self.view.window().show_quick_panel(self.namespaces, self.on_import)
             else:
                 return self.on_select()
         except StopIteration:
@@ -82,7 +83,7 @@ class ImportUseListener(sublime_plugin.EventListener):
         if not carry.get(category):
             carry[category] = {}
 
-        if self.view.substr(sublime.Region(begin - 1, begin)) != '\\':
+        if fqcn[0] != '\\' and self.view.substr(sublime.Region(begin - 1, begin)) != '\\':
             carry[category][klass] = {'fqcn': fqcn, 'klass': klass, 'pos': pos}
 
         return carry
@@ -94,5 +95,5 @@ class ImportUseListener(sublime_plugin.EventListener):
                 merged.update(symbols.get(category))
         return merged
 
-    def nextval(self, dict):
-        return next(iter(dict.values()))
+    def nextval(self, obj):
+        return next(iter(obj.values())) if type(obj) is dict else None
