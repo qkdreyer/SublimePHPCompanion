@@ -10,6 +10,7 @@ from ..utils import find_symbol
 class ImportUseListener(sublime_plugin.EventListener):
     def on_post_save_async(self, view):
         self.view = view
+        self.window = view.window()
         settings = sublime.load_settings('PHP Companion.sublime-settings')
         enable_import_use_on_save = settings.get('enable_import_use_on_save', False)
         file_name = view.file_name()
@@ -20,6 +21,7 @@ class ImportUseListener(sublime_plugin.EventListener):
 
         if enable_import_use_on_save and file_name.endswith('.php'):
             symbols = reduce(self.index_symbols_by_category, view.symbols(), {})
+            # TODO make symbols (imports/references) unique
             self.imports = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
             self.references = self.merge_symbols_for_categories(symbols, ['SP', 'SC', 'SCA', 'KA'])
             # print('symbols', symbols)
@@ -29,7 +31,7 @@ class ImportUseListener(sublime_plugin.EventListener):
 
             for klass, use in self.imports.items():
                 if not self.references.get(klass):
-                    #print('removing use', klass, use)
+                    # print('removing use', klass, use)
                     region = self.view.find(('use ' + use.get('fqcn') + ';').replace('\\', '\\\\'), 0)
                     self.view.run_command('replace_fqcn', {'region_start': region.begin() -1, 'region_end': region.end(), 'namespace': '', 'leading_separator': False})
 
@@ -41,7 +43,7 @@ class ImportUseListener(sublime_plugin.EventListener):
             reference = next(self.references_iterator)
             klass = reference.get('klass')
             if not self.imports.get(klass):
-                self.namespaces = find_symbol(klass, self.view.window())
+                self.namespaces = find_symbol(klass, self.window)
 
                 for namespace in self.namespaces:
                     if self.namespace and self.namespace.get('fqcn') in namespace[0]:
@@ -50,8 +52,7 @@ class ImportUseListener(sublime_plugin.EventListener):
                 if len(self.namespaces) == 1:
                     self.on_import(0)
                 elif len(self.namespaces) > 1:
-                    sublime.set_timeout(lambda: self.view.window().show_quick_panel(self.namespaces, self.on_import), 10)
-                    # self.view.window().show_quick_panel(self.namespaces, self.on_import)
+                    sublime.set_timeout(lambda: self.window.show_quick_panel(self.namespaces, self.on_import), 10)
             else:
                 return self.on_select()
         except StopIteration:
@@ -62,8 +63,13 @@ class ImportUseListener(sublime_plugin.EventListener):
         if index == -1:
             return
 
-        #print('adding use', self.namespaces[index][0])
-        self.view.run_command('import_use', {'namespace': self.namespaces[index][0]})
+        namespace = self.namespaces[index][0]
+
+        if not self.window.lookup_symbol_in_index(namespace):
+            return
+
+        # print('adding use', self.namespaces[index][0])
+        self.view.run_command('import_use', {'namespace': namespace})
         self.on_select()
 
     def index_symbols_by_category(self, carry, item):
