@@ -43,16 +43,17 @@ class ImportUseListener(sublime_plugin.EventListener):
             reference = next(self.references_iterator)
             klass = reference.get('klass')
             if not self.imports.get(klass):
-                self.namespaces = find_symbol(klass, self.window)
+                self.symbols = find_symbol(klass, self.window)
 
-                for namespace in self.namespaces:
-                    if self.namespace and self.namespace.get('fqcn') in namespace[0]:
+                for symbol in self.symbols:
+                    namespace = symbol[0]
+                    if self.namespace and self.namespace.get('fqcn') in namespace:
                         return self.on_select()
 
-                if len(self.namespaces) == 1:
+                if len(self.symbols) == 1:
                     self.on_import(0)
-                elif len(self.namespaces) > 1:
-                    sublime.set_timeout(lambda: self.window.show_quick_panel(self.namespaces, self.on_import), 10)
+                elif len(self.symbols) > 1:
+                    sublime.set_timeout(lambda: self.window.show_quick_panel(self.symbols, self.on_import), 10)
             else:
                 return self.on_select()
         except StopIteration:
@@ -63,12 +64,14 @@ class ImportUseListener(sublime_plugin.EventListener):
         if index == -1:
             return
 
-        namespace = self.namespaces[index][0]
+        symbol = self.symbols[index]
+        namespace = symbol[0]
+        file = symbol[1]
 
-        if not self.window.lookup_symbol_in_index(namespace):
+        if not namespace.replace('\\', '/') in file:
             return
 
-        # print('adding use', self.namespaces[index][0])
+        # print('adding use', self.symbols[index][0])
         self.view.run_command('import_use', {'namespace': namespace})
         self.on_select()
 
