@@ -8,6 +8,7 @@ from .php_companion.commands.insert_php_constructor_property import InsertPhpCon
 from .php_companion.commands.implement import ImplementCommand
 from .php_companion.commands.parse import ParseCommand
 from .php_companion.commands.create import CreateCommand
+from .php_companion.commands.fix_imports_command import FixImportsCommand
 
 from .php_companion.listeners.import_namespace_listener import ImportNamespaceListener
-from .php_companion.listeners.import_use_listener import ImportUseListener
+from .php_companion.listeners.fix_imports_listener import FixImportsListener
