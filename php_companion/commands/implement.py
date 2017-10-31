@@ -20,25 +20,30 @@ class ImplementCommand(sublime_plugin.TextCommand):
 
     # Gets the extended symbol
     #
-    def get_extended_symbol(self):
-        view_content = self.get_view_content()
+    def get_extended_symbol(self, view_content):
         search = re.search(r"extends\s+(\w+)", view_content)
         return search.group(1) if search else ''
+
+    # Gets recursively locations
+    #
+    def get_locations(self, symbols, loop=0):
+        locations = []
+        for symbol in symbols:
+            if symbol:
+                locations += self.view.window().lookup_symbol_in_index(symbol)
+                extended = []
+                for location in locations:
+                    extended.append(self.get_extended_symbol(open(location[0], 'r').read()))
+                if len(extended) > 0:
+                    locations += self.get_locations(extended, ++loop)
+                if len(locations) > 0 and loop == 0:
+                    break;
+        return locations
 
     # Gets files with names that match the currently selected symbol
     #
     def get_matching_files(self):
-        window = self.view.window()
-        symbols = [self.get_selected_symbol, self.get_extended_symbol]
-        locations = None
-
-        for symbol in symbols:
-            symbol = symbol()
-            if symbol:
-                locations = self.view.window().lookup_symbol_in_index(symbol)
-                if locations:
-                    break
-
+        locations = self.get_locations([self.get_selected_symbol(), self.get_extended_symbol(self.get_view_content())])
         return list(map(lambda x: x[0], locations)) if locations else []
 
     # Handles the selection of a quick panel item

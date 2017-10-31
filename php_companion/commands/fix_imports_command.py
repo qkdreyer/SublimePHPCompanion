@@ -1,5 +1,6 @@
 import sublime
 import sublime_plugin
+import sys
 from functools import reduce
 
 from ..utils import find_symbol
@@ -14,7 +15,8 @@ class FixImportsCommand(sublime_plugin.TextCommand):
             # TODO make symbols (imports/references) unique
             self.imports = self.merge_symbols_for_categories(symbols, ['SU', 'SUA'])
             self.references = self.merge_symbols_for_categories(symbols, ['SP', 'SC', 'SCA', 'KA'])
-            # print('symbols', symbols)
+            # print('imports', self.imports)
+            # print('references', self.references)
 
             self.namespace = self.nextval(symbols.get('N'))
             self.klass = self.nextval(symbols.get('C'))
@@ -49,6 +51,9 @@ class FixImportsCommand(sublime_plugin.TextCommand):
         except StopIteration:
             if self.view.is_dirty():
                 self.view.run_command('save')
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
 
     def on_import(self, index):
         if index == -1:
@@ -58,8 +63,10 @@ class FixImportsCommand(sublime_plugin.TextCommand):
         namespace = symbol[0]
         file = symbol[1]
 
-        if not namespace.replace('\\', '/') in file:
-            return
+        print('symbol', symbol, 'namespace', namespace, 'file', file)
+
+        # if not namespace.replace('\\', '/') in file:
+            # return
 
         # print('adding use', self.symbols[index][0])
         self.view.run_command('import_use', {'namespace': namespace})
@@ -70,6 +77,10 @@ class FixImportsCommand(sublime_plugin.TextCommand):
         begin = pos.begin()
 
         symbol = item[1]
+
+        if not ':' in symbol:
+            return carry
+
         chunks = symbol.split(':')
         category = chunks[0].lstrip()
         fqcn = chunks[1].lstrip()
